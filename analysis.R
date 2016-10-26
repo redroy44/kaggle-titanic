@@ -9,9 +9,19 @@ file_test <- "data/test.csv"
 
 # Load the train dataset
 df <- read.csv2(file_train, stringsAsFactors = F, header = T, sep = ",", na.strings = "")
-
 # Load the data into dplyr's tbl_df and do some cleaning
 train_data <- tbl_df(df)
+
+# Load the test dataset
+dft <- read.csv2(file_test, stringsAsFactors = F, header = T, sep = ",", na.strings = "")
+# Load the data into dplyr's tbl_df and do some cleaning
+test_data <- tbl_df(dft)
+
+# Fix missing data
+# Look for NA's
+test_data %>%
+  summarise_each(funs(sum(is.na(.)))) %>%
+  print
 
 # Fix missing data
 # Look for NA's
