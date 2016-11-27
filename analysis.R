@@ -8,14 +8,10 @@ file_train <- "data/train.csv"
 file_test <- "data/test.csv"
 
 # Load the train dataset
-df <- read.csv2(file_train, stringsAsFactors = F, header = T, sep = ",", na.strings = "")
-# Load the data into dplyr's tbl_df and do some cleaning
-train_data <- tbl_df(df)
+train_data <- read_csv(file_train)
 
 # Load the test dataset
-dft <- read.csv2(file_test, stringsAsFactors = F, header = T, sep = ",", na.strings = "")
-# Load the data into dplyr's tbl_df and do some cleaning
-test_data <- tbl_df(dft)
+test_data <- read_csv(file_test)
 
 # Fix missing data
 # Look for NA's
