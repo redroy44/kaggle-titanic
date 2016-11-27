@@ -30,7 +30,8 @@ full_data <- full_data %>%
   separate(Name, into = c("Surname", "FirstName"), sep = ",") %>%
   separate(FirstName, into = c("Title", "FirstName"), sep = "\\.", extra = "merge") %>%
   mutate(Title = as.factor(str_trim(Title)), Survived = as.factor(Survived), Pclass = as.factor(Pclass)) %>%
-  select(-Surname, -FirstName, -Ticket, -Cabin)
+  mutate(FamilySize = Parch + SibSp) %>%
+  select(-Surname, -FirstName, -Ticket, -Cabin, -Parch, -SibSp)
 
 # Fix NA's in Age Fare Embarked -------------------------------------------
 imputed_data <- complete(mice(select(full_data, -Survived)))
@@ -112,6 +113,12 @@ train_data %>%
   geom_boxplot() +
   labs(title = "Cost of Pclass", x = "Pclass", y = "Fare")
 
+# Percentage of survivors per FamilySize
+train_data %>%
+  select(FamilySize, Survived) %>%
+  ggplot(aes(x=FamilySize)) + 
+  geom_bar(aes(fill=Survived), color = "black", binwidth = 1, position = 'fill') +
+  labs(title = "Survival per FamilySize", x = "Title", y = "Percent Survived")
 
 # Model fitting -----------------------------------------------------------
 
