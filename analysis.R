@@ -1,4 +1,6 @@
 # Load some packages
+library(checkpoint)
+checkpoint("2016-11-15")
 library(tidyverse)
 library(gridExtra)
 library(mice)
