@@ -2,7 +2,6 @@
 library(checkpoint)
 checkpoint("2016-11-15")
 library(tidyverse)
-library(gridExtra)
 library(mice)
 
 # dataset path
@@ -16,13 +15,12 @@ train_data <- read_csv(file_train)
 test_data <- read_csv(file_test)
 
 # Fix missing data
-# Look for NA's
+# Look for NA's in test_data
 test_data %>%
   summarise_each(funs(sum(is.na(.)))) %>%
   print
 
-# Fix missing data
-# Look for NA's
+# Look for NA's in train_data
 train_data %>%
   summarise_each(funs(sum(is.na(.)))) %>%
   print
@@ -33,7 +31,7 @@ train_data <- train_data %>%
   mutate(Embarked = replace(Embarked, is.na(Embarked), medianEmbarked))
 
 train_data <- train_data %>%
-  mutate(Sex = as.factor(Sex), Embarked = as.factor(Embarked), Age = as.integer(Age), Fare = as.numeric(Fare)) %>%
+  mutate(Sex = as.factor(Sex), Embarked = as.factor(Embarked)) %>%
   separate(Name, into = c("Surname", "FirstName"), sep = ",") %>%
   separate(FirstName, into = c("Title", "FirstName"), sep = "\\.", extra = "merge") %>%
   mutate(Title = as.factor(Title), Survived = as.factor(Survived), Pclass = as.factor(Pclass)) %>%
@@ -50,7 +48,7 @@ train_data %>%
 
 # Prepare test set
 test_data <- test_data %>%
-  mutate(Sex = as.factor(Sex), Embarked = as.factor(Embarked), Age = as.integer(Age), Fare = as.numeric(Fare)) %>%
+  mutate(Sex = as.factor(Sex), Embarked = as.factor(Embarked)) %>%
   separate(Name, into = c("Surname", "FirstName"), sep = ",") %>%
   separate(FirstName, into = c("Title", "FirstName"), sep = "\\.", extra = "merge") %>%
   mutate(Title = as.factor(Title), Pclass = as.factor(Pclass)) %>%
@@ -59,54 +57,46 @@ test_data <- test_data %>%
 imputed_test <- complete(mice(test_data))
 test_data$Age <- imputed_test$Age
 test_data$Fare <- imputed_test$Fare
+
 # Time for some plots
 
 # Percentage of survivors per title
-p1 <- train_data %>%
+train_data %>%
   select(Title, Survived) %>%
   group_by(Title) %>%
   summarize(count = n(), S = sum(as.integer(Survived)-1), P = S/count) %>%
   arrange(desc(S)) %>%
-  ggplot(aes(x=Title, y=P)) + geom_bar(stat="Identity") +
-  labs(title = "Survival of Titles", x = "Title", y = "Percent Survived")
-plot(p1)
+  ggplot(aes(x=Title, y=P)) + 
+    geom_bar(stat="Identity") +
+    labs(title = "Survival of Titles", x = "Title", y = "Percent Survived")
 
 # Percentage of survivors per Age
-p2 <- train_data %>%
+train_data %>%
   select(Age, Survived) %>%
-  group_by(Age) %>%
-  #summarize(count = n(), S = sum(Survived), P = S/count) %>%
-  ggplot(aes(x=Survived, y=Age)) + geom_boxplot() +
-  labs(title = "Survival per Age", x = "Title", y = "Percent Survived")
-plot(p2)
+  ggplot(aes(x=Age)) + 
+    geom_bar(aes(fill=Survived), color = "black", binwidth = 4, position = 'fill') +
+    labs(title = "Survival per Age", x = "Title", y = "Percent Survived")
 
 # Percentage of survivors per Sex
-p3 <- train_data %>%
+train_data %>%
   select(Sex, Survived) %>%
-  group_by(Sex) %>%
-  summarize(count = n(), S = sum(as.integer(Survived)-1), P = S/count) %>%
-  ggplot(aes(x=Sex, y=P)) + geom_bar(stat="Identity") +
-  labs(title = "Survival per Sex", x = "Sex", y = "Percent Survived")
-plot(p3)
+  ggplot(aes(x=Sex)) + 
+    geom_bar(aes(fill=Survived), position = 'fill') +
+    labs(title = "Survival per Sex", x = "Sex", y = "Percent Survived")
 
 # Percentage of survivors per Pclass
-p4 <- train_data %>%
+train_data %>%
   select(Pclass, Survived) %>%
-  group_by(Pclass) %>%
-  summarize(count = n(), S = sum(as.integer(Survived)-1), P = S/count) %>%
-  ggplot(aes(x=Pclass, y=P)) + geom_bar(stat="Identity") +
-  labs(title = "Survival per Pclass", x = "Pclass", y = "Percent Survived")
-plot(p4)
+  ggplot(aes(x=Pclass)) + 
+    geom_bar(aes(fill=Survived), position = 'fill') +
+    labs(title = "Survival per Pclass", x = "Pclass", y = "Percent Survived")
 
 # Fare per class
-p5 <- train_data %>%
+train_data %>%
   select(Fare, Pclass) %>%
-  group_by(Fare) %>%
-  ggplot(aes(x=Pclass, y=Fare)) + geom_boxplot() +
+  ggplot(aes(x=Pclass, y=Fare)) + 
+  geom_boxplot() +
   labs(title = "Cost of Pclass", x = "Pclass", y = "Fare")
-plot(p5)
-
-grid.arrange(p4, p5, ncol=2)
 
 # Simple model
 
@@ -118,4 +108,5 @@ Prediction <- predict(glm_fit, select(test_data, -PassengerId, -Title, -Parch, -
 Survived <- round(Prediction)
 submit <- data.frame(PassengerId = test_data$PassengerId, Survived = Survived)
 write.csv(submit, file = "mysubmission.csv", row.names = FALSE)
+
 
