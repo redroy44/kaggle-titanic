@@ -10,25 +10,19 @@ set.seed(29082012)
 file_train <- "data/train.csv"
 file_test <- "data/test.csv"
 
-# Load the train dataset
-train_data <- read_csv(file_train)
 
-# Load the test dataset
+# Load the train & test dataset -------------------------------------------
+train_data <- read_csv(file_train)
 test_data <- read_csv(file_test)
 
 full_data = bind_rows(train_data, test_data)
 
-# Fix missing data
-# Look for NA's in full_data
+# Look for NA's in full_data ----------------------------------------------
 full_data %>%
   summarise_each(funs(sum(is.na(.)))) %>%
   print
 
-# Fix NA's in Embarked
-#medianEmbarked <- arrange((count(train_data, Embarked)), desc(n))[1,1][[1]]
-#train_data <- train_data %>%
-#  mutate(Embarked = replace(Embarked, is.na(Embarked), medianEmbarked))
-
+# Extract useful data -----------------------------------------------------
 full_data <- full_data %>%
   mutate(Sex = as.factor(Sex), Embarked = as.factor(Embarked)) %>%
   separate(Name, into = c("Surname", "FirstName"), sep = ",") %>%
@@ -36,7 +30,7 @@ full_data <- full_data %>%
   mutate(Title = as.factor(Title), Survived = as.factor(Survived), Pclass = as.factor(Pclass)) %>%
   select(-Surname, -FirstName, -Ticket, -Cabin)
 
-# Fix NA's in Age Fare Embarked
+# Fix NA's in Age Fare Embarked -------------------------------------------
 imputed_data <- complete(mice(select(full_data, -Survived)))
 full_data <- round(imputed_data$Age)
 full_data$Fare=imputed_data$Fare
@@ -47,7 +41,7 @@ full_data %>%
   summarise_each(funs(sum(is.na(.)))) %>%
   print
 
-# Time for some plots
+# Time for some plots -----------------------------------------------------
 
 # Percentage of survivors per title
 train_data %>%
@@ -87,16 +81,18 @@ train_data %>%
   geom_boxplot() +
   labs(title = "Cost of Pclass", x = "Pclass", y = "Fare")
 
-# Simple model
 
+# Model fitting -----------------------------------------------------------
+
+# glm
 glm_fit<-glm(Survived~.,data=select(train_data, -PassengerId, -Title, -Embarked),family=binomial(link='logit'))
 summary(glm_fit)
-
+# rf
 rf <- randomForest(x=select(train_data, -Survived, -PassengerId, -Title), y=train_data$Survived, ntree=100, importance=TRUE)
 imp <- importance(rf, type=1)
 
 
-# Write submission file
+# Write submission file ---------------------------------------------------
 Prediction <- predict(rf, select(test_data, -PassengerId, -Title), type = "response")
 submit <- data.frame(PassengerId = test_data$PassengerId, Survived = Prediction)
 write.csv(submit, file = "mysubmission.csv", row.names = FALSE)
