@@ -3,6 +3,8 @@ library(checkpoint)
 checkpoint("2016-11-15")
 library(tidyverse)
 library(mice)
+library(randomForest)
+set.seed(29082012)
 
 # dataset path
 file_train <- "data/train.csv"
@@ -14,49 +16,36 @@ train_data <- read_csv(file_train)
 # Load the test dataset
 test_data <- read_csv(file_test)
 
-# Fix missing data
-# Look for NA's in test_data
-test_data %>%
-  summarise_each(funs(sum(is.na(.)))) %>%
-  print
+full_data = bind_rows(train_data, test_data)
 
-# Look for NA's in train_data
-train_data %>%
+# Fix missing data
+# Look for NA's in full_data
+full_data %>%
   summarise_each(funs(sum(is.na(.)))) %>%
   print
 
 # Fix NA's in Embarked
-medianEmbarked <- arrange((count(train_data, Embarked)), desc(n))[1,1][[1]]
-train_data <- train_data %>%
-  mutate(Embarked = replace(Embarked, is.na(Embarked), medianEmbarked))
+#medianEmbarked <- arrange((count(train_data, Embarked)), desc(n))[1,1][[1]]
+#train_data <- train_data %>%
+#  mutate(Embarked = replace(Embarked, is.na(Embarked), medianEmbarked))
 
-train_data <- train_data %>%
+full_data <- full_data %>%
   mutate(Sex = as.factor(Sex), Embarked = as.factor(Embarked)) %>%
   separate(Name, into = c("Surname", "FirstName"), sep = ",") %>%
   separate(FirstName, into = c("Title", "FirstName"), sep = "\\.", extra = "merge") %>%
   mutate(Title = as.factor(Title), Survived = as.factor(Survived), Pclass = as.factor(Pclass)) %>%
   select(-Surname, -FirstName, -Ticket, -Cabin)
 
-# Fix NA's in Age
-imputed_data <- complete(mice(train_data))
-train_data$Age <- imputed_data$Age
+# Fix NA's in Age Fare Embarked
+imputed_data <- complete(mice(select(full_data, -Survived)))
+full_data <- round(imputed_data$Age)
+full_data$Fare=imputed_data$Fare
+full_data$Embarked=imputed_data$Embarked
 
 # Check again for NA's
-train_data %>%
+full_data %>%
   summarise_each(funs(sum(is.na(.)))) %>%
   print
-
-# Prepare test set
-test_data <- test_data %>%
-  mutate(Sex = as.factor(Sex), Embarked = as.factor(Embarked)) %>%
-  separate(Name, into = c("Surname", "FirstName"), sep = ",") %>%
-  separate(FirstName, into = c("Title", "FirstName"), sep = "\\.", extra = "merge") %>%
-  mutate(Title = as.factor(Title), Pclass = as.factor(Pclass)) %>%
-  select(-Surname, -FirstName, -Ticket, -Cabin)
-
-imputed_test <- complete(mice(test_data))
-test_data$Age <- imputed_test$Age
-test_data$Fare <- imputed_test$Fare
 
 # Time for some plots
 
@@ -103,10 +92,13 @@ train_data %>%
 glm_fit<-glm(Survived~.,data=select(train_data, -PassengerId, -Title, -Embarked),family=binomial(link='logit'))
 summary(glm_fit)
 
+rf <- randomForest(x=select(train_data, -Survived, -PassengerId, -Title), y=train_data$Survived, ntree=100, importance=TRUE)
+imp <- importance(rf, type=1)
+
+
 # Write submission file
-Prediction <- predict(glm_fit, select(test_data, -PassengerId, -Title, -Parch, -Fare, -Embarked), type = "response")
-Survived <- round(Prediction)
-submit <- data.frame(PassengerId = test_data$PassengerId, Survived = Survived)
+Prediction <- predict(rf, select(test_data, -PassengerId, -Title), type = "response")
+submit <- data.frame(PassengerId = test_data$PassengerId, Survived = Prediction)
 write.csv(submit, file = "mysubmission.csv", row.names = FALSE)
 
 
