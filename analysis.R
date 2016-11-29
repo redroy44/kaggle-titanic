@@ -4,9 +4,14 @@ checkpoint("2016-11-15")
 library(tidyverse)
 library(forcats)
 library(stringr)
+library(caret)
+library(kernlab)
 library(mice)
 library(randomForest)
+library(doMC)
+registerDoMC(cores = 8)
 set.seed(29082012)
+
 
 # dataset path
 file_train <- "data/train.csv"
@@ -120,18 +125,42 @@ train_data %>%
   geom_bar(aes(fill=Survived), color = "black", binwidth = 1, position = 'fill') +
   labs(title = "Survival per FamilySize", x = "Title", y = "Percent Survived")
 
-# Model fitting -----------------------------------------------------------
+# Model fitting and validation --------------------------------------------
+inTrain <- createDataPartition(train_data$Survived, p = 0.8, list = F)
 
-# glm
-glm_fit<-glm(Survived~.,data=select(train_data, -PassengerId),family=binomial(link='logit'))
-summary(glm_fit)
-# rf
-rf <- randomForest(x=select(train_data, -Survived, -PassengerId), y=train_data$Survived, ntree=1000, importance=TRUE)
-imp <- importance(rf, type=1)
+training <- train_data %>%
+  slice(inTrain)
+testing <- train_data %>%
+  slice(-inTrain)
 
+fitControl <- trainControl(## 10-fold CV
+  method = "repeatedcv",
+  number = 10,
+  ## repeated ten times
+  repeats = 10)
+
+rfGrid <-  expand.grid(mtry=c(2,3,4,5,6,8,10))
+
+modelFit<-train(Survived~., data=select(training, -PassengerId),
+                method='rf',
+                trControl = fitControl,
+                ntree=1000,
+                tuneGrid = rfGrid)
+modelFit
+ggplot(modelFit)
+varImp(modelFit, scale = F)
+
+predictions<- predict(modelFit, newdata=testing)
+confusionMatrix(predictions, testing$Survived)
+
+# glm - old
+# glm_fit<-glm(Survived~.,data=select(train_data, -PassengerId),family=binomial(link='logit'))
+# summary(glm_fit)
 
 # Write submission file ---------------------------------------------------
-Prediction <- predict(rf, select(test_data, -PassengerId), type = "response")
+model <- modelFit
+
+Prediction <- predict(model, newdata = select(test_data, -PassengerId))
 submit <- data.frame(PassengerId = test_data$PassengerId, Survived = Prediction)
 write.csv(submit, file = "mysubmission.csv", row.names = FALSE)
 
