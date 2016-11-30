@@ -9,7 +9,7 @@ library(kernlab)
 library(mice)
 library(randomForest)
 library(doMC)
-registerDoMC(cores = 4)
+registerDoMC(cores = 8)
 set.seed(29082012)
 
 
@@ -96,14 +96,6 @@ full_data <-full_data %>%
   mutate(group = as.factor(Surname), ticket_group = as.factor(Ticket)) %>%
   select(-Ticket, -Surname)
 
-# Cabin group ------------------------------------------------------------
-# cabin_group <- full_data %>% 
-#   select(Cabin
-#   unique()
-
-# cabin_group %>%
-#   group_by(Surname, Ticket) %>%
-#   summarise(n = n())
 # Resplit train and test data ---------------------------------------------
 
 train_data <- full_data %>%
@@ -223,5 +215,3 @@ model <- glmFit
 Prediction <- predict(model, newdata = select(test_data, -PassengerId))
 submit <- data.frame(PassengerId = test_data$PassengerId, Survived = ifelse(Prediction == "yes",1,0))
 write.csv(submit, file = "mysubmission.csv", row.names = FALSE)
-
-
