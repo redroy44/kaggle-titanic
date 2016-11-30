@@ -9,7 +9,7 @@ library(kernlab)
 library(mice)
 library(randomForest)
 library(doMC)
-registerDoMC(cores = 8)
+registerDoMC(cores = 4)
 set.seed(29082012)
 
 
@@ -38,7 +38,7 @@ full_data <- full_data %>%
   mutate(FamilySize = Parch + SibSp + 1, Pclass = as.factor(Pclass)) %>%
   mutate(Pclass = fct_recode(Pclass,first = "1", second = "2", third = "3")) %>%
   mutate(Survived = fct_recode(Survived, "no" = "0", "yes" = "1")) %>%
-  select(-FirstName, -Cabin, -Parch, -SibSp)
+  select(-FirstName, -Parch, -SibSp, -Cabin)
 
 # Fix NA's in Age Fare Embarked -------------------------------------------
 imputed_data <- complete(mice(select(full_data, -Survived)))
@@ -87,6 +87,23 @@ levels(sex_age$mfc)
 full_data <- full_data %>%
   mutate(mfc = sex_age$mfc)
 
+# Family group -----------------------------------------------------------
+family_unique <- full_data %>% 
+  select(Surname) %>%
+  unique()
+
+full_data <-full_data %>%
+  mutate(group = as.factor(Surname), ticket_group = as.factor(Ticket)) %>%
+  select(-Ticket, -Surname)
+
+# Cabin group ------------------------------------------------------------
+# cabin_group <- full_data %>% 
+#   select(Cabin
+#   unique()
+
+# cabin_group %>%
+#   group_by(Surname, Ticket) %>%
+#   summarise(n = n())
 # Resplit train and test data ---------------------------------------------
 
 train_data <- full_data %>%
@@ -149,40 +166,62 @@ training <- train_data %>%
 testing <- train_data %>%
   slice(-inTrain)
 
+# Random Forest -----------------------------------------------
 fitControl <- trainControl(## 10-fold CV
   method = "repeatedcv",
   number = 10,
   ## repeated ten times
   repeats = 10,
-  classProbs = TRUE,
-  summaryFunction = twoClassSummary)
-
-rfGrid <-  expand.grid(mtry=c(10,15,20))
-
-modelFit<-train(Survived~., data=select(training, -PassengerId, -Ticket, -Surname),
-                method='cforest',
-                trControl = fitControl,
-                metric="ROC",
-                controls = cforest_unbiased(ntree = 1000),
-                tuneGrid = rfGrid
+  classProbs = TRUE
 )
 
-modelFit
-ggplot(modelFit)
-plot(varImp(modelFit,scale=F))
+rfGrid <-  expand.grid(mtry=1:5 *2)
 
-predictions<- predict(modelFit, select(testing, -PassengerId, -Ticket, -Surname))
+rfFit<-train(Survived~., data=select(training, -PassengerId),
+                method='rf',
+                trControl = fitControl,
+                metric="Accuracy",
+                ntree = 1000,
+                tuneGrid = rfGrid
+                )
+
+rfFit
+ggplot(rfFit)
+plot(varImp(rfFit,scale=F))
+
+predictions<- predict(rfFit, select(testing, -PassengerId))
 confusionMatrix(predictions, testing$Survived)
 
-# glm - old
-# glm_fit<-glm(Survived~.,data=select(train_data, -PassengerId),family=binomial(link='logit'))
-# summary(glm_fit)
+# glmnet -------------------------------------------------------------------
+fitControl <- trainControl(## 10-fold CV
+  method = "repeatedcv",
+  number = 10,
+  ## repeated ten times
+  repeats = 10,
+  classProbs = TRUE)
+
+trGrid <-  expand.grid(.alpha = c(0.01, 0.03, 0.04, 0.05, 0.06, 0.07,0.08, 0.1),
+                       .lambda = (1:10) * 0.1)
+
+glmFit<-train(Survived~., data=select(training, -PassengerId),
+                method='glmnet',
+                trControl = fitControl,
+                metric = "Accuracy",
+                tuneGrid=trGrid
+                )
+
+glmFit
+ggplot(glmFit)
+plot(varImp(glmFit,scale=F))
+
+predictions<- predict(glmFit, select(testing, -PassengerId))
+confusionMatrix(predictions, testing$Survived)
 
 # Write submission file ---------------------------------------------------
-model <- modelFit
+model <- glmFit
 
-Prediction <- predict(model, newdata = select(test_data, -PassengerId, -Ticket, -Surname))
-submit <- data.frame(PassengerId = test_data$PassengerId, Survived = Prediction)
+Prediction <- predict(model, newdata = select(test_data, -PassengerId))
+submit <- data.frame(PassengerId = test_data$PassengerId, Survived = ifelse(Prediction == "yes",1,0))
 write.csv(submit, file = "mysubmission.csv", row.names = FALSE)
 
 
