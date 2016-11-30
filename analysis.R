@@ -34,15 +34,19 @@ full_data <- full_data %>%
   mutate(Sex = as.factor(Sex), Embarked = as.factor(Embarked)) %>%
   separate(Name, into = c("Surname", "FirstName"), sep = ",") %>%
   separate(FirstName, into = c("Title", "FirstName"), sep = "\\.", extra = "merge") %>%
-  mutate(Title = as.factor(str_trim(Title)), Survived = as.factor(Survived), Pclass = as.factor(Pclass)) %>%
-  mutate(FamilySize = Parch + SibSp) %>%
-  select(-Surname, -FirstName, -Ticket, -Cabin, -Parch, -SibSp)
+  mutate(Title = as.factor(str_trim(Title)), Survived = as.factor(Survived)) %>%
+  mutate(FamilySize = Parch + SibSp + 1, Pclass = as.factor(Pclass)) %>%
+  mutate(Pclass = fct_recode(Pclass,first = "1", second = "2", third = "3")) %>%
+  mutate(Survived = fct_recode(Survived, "no" = "0", "yes" = "1")) %>%
+  select(-FirstName, -Cabin, -Parch, -SibSp)
 
 # Fix NA's in Age Fare Embarked -------------------------------------------
 imputed_data <- complete(mice(select(full_data, -Survived)))
 full_data$Age <- round(imputed_data$Age)
 full_data$Fare <- imputed_data$Fare
 full_data$Embarked <- imputed_data$Embarked
+# Drop "contrasts" attribute
+attr(full_data$Embarked, "contrasts") <- NULL
 
 # Check again for NA's in full_data ---------------------------------------
 full_data %>%
@@ -70,6 +74,18 @@ titles <- full_data %>%
                               "Lady" = c("Dona", "Lady", "the Countess")))
 
 full_data$Title <- titles$Title
+
+# male - female - child ----------------------------------------------------
+sex_age <- full_data %>% 
+  select(Sex, Age)
+
+sex_age <- sex_age %>%
+  mutate(mfc = as.factor(ifelse(Age < 18, "child", as.character(Sex))))
+
+levels(sex_age$mfc)
+
+full_data <- full_data %>%
+  mutate(mfc = sex_age$mfc)
 
 # Resplit train and test data ---------------------------------------------
 
@@ -126,7 +142,7 @@ train_data %>%
   labs(title = "Survival per FamilySize", x = "Title", y = "Percent Survived")
 
 # Model fitting and validation --------------------------------------------
-inTrain <- createDataPartition(train_data$Survived, p = 0.8, list = F)
+inTrain <- createDataPartition(train_data$Survived, p = 0.75, list = F)
 
 training <- train_data %>%
   slice(inTrain)
@@ -137,20 +153,25 @@ fitControl <- trainControl(## 10-fold CV
   method = "repeatedcv",
   number = 10,
   ## repeated ten times
-  repeats = 10)
+  repeats = 10,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary)
 
-rfGrid <-  expand.grid(mtry=c(2,3,4,5,6,8,10))
+rfGrid <-  expand.grid(mtry=c(10,15,20))
 
-modelFit<-train(Survived~., data=select(training, -PassengerId),
-                method='rf',
+modelFit<-train(Survived~., data=select(training, -PassengerId, -Ticket, -Surname),
+                method='cforest',
                 trControl = fitControl,
-                ntree=1000,
-                tuneGrid = rfGrid)
+                metric="ROC",
+                controls = cforest_unbiased(ntree = 1000),
+                tuneGrid = rfGrid
+)
+
 modelFit
 ggplot(modelFit)
-varImp(modelFit, scale = F)
+plot(varImp(modelFit,scale=F))
 
-predictions<- predict(modelFit, newdata=testing)
+predictions<- predict(modelFit, select(testing, -PassengerId, -Ticket, -Surname))
 confusionMatrix(predictions, testing$Survived)
 
 # glm - old
@@ -160,7 +181,7 @@ confusionMatrix(predictions, testing$Survived)
 # Write submission file ---------------------------------------------------
 model <- modelFit
 
-Prediction <- predict(model, newdata = select(test_data, -PassengerId))
+Prediction <- predict(model, newdata = select(test_data, -PassengerId, -Ticket, -Surname))
 submit <- data.frame(PassengerId = test_data$PassengerId, Survived = Prediction)
 write.csv(submit, file = "mysubmission.csv", row.names = FALSE)
 
