@@ -159,30 +159,30 @@ testing <- train_data %>%
   slice(-inTrain)
 
 # Random Forest -----------------------------------------------
-fitControl <- trainControl(## 10-fold CV
-  method = "repeatedcv",
-  number = 10,
-  ## repeated ten times
-  repeats = 10,
-  classProbs = TRUE
-)
-
-rfGrid <-  expand.grid(mtry=1:5 *2)
-
-rfFit<-train(Survived~., data=select(training, -PassengerId),
-                method='rf',
-                trControl = fitControl,
-                metric="Accuracy",
-                ntree = 1000,
-                tuneGrid = rfGrid
-                )
-
-rfFit
-ggplot(rfFit)
-plot(varImp(rfFit,scale=F))
-
-predictions<- predict(rfFit, select(testing, -PassengerId))
-confusionMatrix(predictions, testing$Survived)
+# fitControl <- trainControl(## 10-fold CV
+#   method = "repeatedcv",
+#   number = 10,
+#   ## repeated ten times
+#   repeats = 10,
+#   classProbs = TRUE
+# )
+# 
+# rfGrid <-  expand.grid(mtry=1:5 *2)
+# 
+# rfFit<-train(Survived~., data=select(training, -PassengerId),
+#                 method='rf',
+#                 trControl = fitControl,
+#                 metric="Accuracy",
+#                 ntree = 1000,
+#                 tuneGrid = rfGrid
+#                 )
+# 
+# rfFit
+# ggplot(rfFit)
+# plot(varImp(rfFit,scale=F))
+# 
+# predictions<- predict(rfFit, select(testing, -PassengerId))
+# confusionMatrix(predictions, testing$Survived)
 
 # glmnet -------------------------------------------------------------------
 fitControl <- trainControl(## 10-fold CV
@@ -192,7 +192,7 @@ fitControl <- trainControl(## 10-fold CV
   repeats = 10,
   classProbs = TRUE)
 
-trGrid <-  expand.grid(.alpha = c(0.01, 0.03, 0.04, 0.05, 0.06, 0.07,0.08, 0.1),
+trGrid <-  expand.grid(.alpha = seq(0.01, 0.2, length.out = 10),
                        .lambda = (1:10) * 0.1)
 
 glmFit<-train(Survived~., data=select(training, -PassengerId),
@@ -204,7 +204,7 @@ glmFit<-train(Survived~., data=select(training, -PassengerId),
 
 glmFit
 ggplot(glmFit)
-plot(varImp(glmFit,scale=F))
+#plot(varImp(glmFit,scale=F))
 
 predictions<- predict(glmFit, select(testing, -PassengerId))
 confusionMatrix(predictions, testing$Survived)
