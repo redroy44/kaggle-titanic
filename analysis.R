@@ -5,9 +5,7 @@ library(tidyverse)
 library(forcats)
 library(stringr)
 library(caret)
-library(kernlab)
 library(mice)
-library(randomForest)
 library(doMC)
 registerDoMC(cores = 8)
 set.seed(29082012)
@@ -204,7 +202,7 @@ glmFit<-train(Survived~., data=select(training, -PassengerId),
 
 glmFit
 ggplot(glmFit)
-#plot(varImp(glmFit,scale=F))
+varImp(glmFit,scale=F)
 
 predictions<- predict(glmFit, select(testing, -PassengerId))
 confusionMatrix(predictions, testing$Survived)
